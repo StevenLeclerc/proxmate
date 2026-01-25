@@ -18,6 +18,25 @@
 
 ## 📦 Installation
 
+### Option 1 : Binaire précompilé (recommandé)
+
+Téléchargez le binaire pour votre plateforme depuis les [Releases](https://github.com/StevenLeclerc/proxmate/releases) :
+
+| Plateforme | Fichier |
+|------------|---------|
+| Linux x86_64 | `proxmate-linux-x86_64` |
+| Windows x86_64 | `proxmate-windows-x86_64.exe` |
+| macOS Intel | `proxmate-macos-x86_64` |
+| macOS Apple Silicon | `proxmate-macos-arm64` |
+
+```bash
+# Linux/macOS : rendre exécutable et déplacer dans le PATH
+chmod +x proxmate-*
+sudo mv proxmate-* /usr/local/bin/proxmate
+```
+
+### Option 2 : Depuis les sources
+
 ```bash
 # Cloner le repo
 git clone https://github.com/StevenLeclerc/proxmate.git
