@@ -59,7 +59,10 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          pyinstaller --onefile --name proxmate --clean proxmate/cli/main.py
+          pyinstaller --onefile --name proxmate --clean \
+            --collect-data rich \
+            --hidden-import rich._unicode_data \
+            proxmate/cli/main.py
 
       - name: Rename binary (Unix)
         if: runner.os != 'Windows'
