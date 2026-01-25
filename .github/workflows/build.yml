@@ -12,6 +12,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           # Linux x86_64
@@ -57,12 +58,15 @@ jobs:
           pip install pyinstaller
           pip install -e .
 
-      - name: Build binary with PyInstaller
+      - name: Build binary with PyInstaller (Unix)
+        if: runner.os != 'Windows'
         run: |
-          pyinstaller --onefile --name proxmate --clean \
-            --collect-data rich \
-            --hidden-import rich._unicode_data \
-            proxmate/cli/main.py
+          pyinstaller --onefile --name proxmate --clean --collect-data rich --hidden-import rich._unicode_data proxmate/cli/main.py
+
+      - name: Build binary with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --onefile --name proxmate --clean --collect-data rich --hidden-import rich._unicode_data proxmate/cli/main.py
 
       - name: Rename binary (Unix)
         if: runner.os != 'Windows'
