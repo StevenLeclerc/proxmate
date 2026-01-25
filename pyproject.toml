@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proxmate"
+version = "0.1.0"
+description = "CLI pour gérer un cluster Proxmox - Création de VMs automatisée"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Jareth"}
+]
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "proxmoxer>=2.0.0",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+proxmate = "proxmate.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["proxmate*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+

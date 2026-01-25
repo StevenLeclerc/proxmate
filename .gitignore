@@ -1,0 +1,78 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+docs/
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# ProxMate - Configuration sensible (NE PAS COMMITTER)
+# Contient les tokens API et informations de connexion
+~/.proxmate/
+.proxmate/
+
+# Fichiers de config locaux (si copiés dans le repo)
+config.yaml
+config.yml
+vms.yaml
+vms.yml
+
+# Secrets
+*.secret
+*.secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
