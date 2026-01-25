@@ -14,22 +14,23 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux
+          # Linux x86_64
           - os: ubuntu-latest
             target: linux-x86_64
             asset_name: proxmate-linux-x86_64
-          # Windows
+          # Windows x86_64
           - os: windows-latest
             target: windows-x86_64
             asset_name: proxmate-windows-x86_64.exe
-          # macOS Intel
-          - os: macos-13
-            target: macos-x86_64
-            asset_name: proxmate-macos-x86_64
-          # macOS Apple Silicon
+          # macOS Apple Silicon (arm64)
           - os: macos-latest
             target: macos-arm64
             asset_name: proxmate-macos-arm64
+          # macOS Intel (x86_64) - utilise macos-latest avec Rosetta
+          - os: macos-latest
+            target: macos-x86_64
+            asset_name: proxmate-macos-x86_64
+            arch: x86_64
 
     runs-on: ${{ matrix.os }}
     
@@ -37,7 +38,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python (x86_64 on macOS arm64)
+        if: matrix.arch == 'x86_64'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+
+      - name: Set up Python (native)
+        if: matrix.arch != 'x86_64'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
