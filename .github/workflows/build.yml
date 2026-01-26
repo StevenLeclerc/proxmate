@@ -22,7 +22,7 @@ jobs:
           # Windows x86_64
           - os: windows-latest
             target: windows-x86_64
-            asset_name: proxmate-windows-x86_64.exe
+            asset_name: proxmate-windows-x86_64
           # macOS Apple Silicon (arm64)
           - os: macos-latest
             target: macos-arm64
@@ -58,31 +58,36 @@ jobs:
           pip install pyinstaller
           pip install -e .
 
-      - name: Build binary with PyInstaller (Unix)
+      - name: Build binary with PyInstaller
+        run: |
+          pyinstaller --onedir --name proxmate --clean --collect-all rich --collect-all proxmoxer proxmate/cli/main.py
+
+      - name: Create archive (Unix)
         if: runner.os != 'Windows'
         run: |
-          pyinstaller --onefile --name proxmate --clean --collect-all rich --collect-all proxmoxer proxmate/cli/main.py
+          cd dist
+          tar -czvf ${{ matrix.asset_name }}.tar.gz proxmate/
 
-      - name: Build binary with PyInstaller (Windows)
+      - name: Create archive (Windows)
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --onefile --name proxmate --clean --collect-all rich --collect-all proxmoxer proxmate/cli/main.py
+          cd dist
+          Compress-Archive -Path proxmate -DestinationPath ${{ matrix.asset_name }}.zip
+        shell: pwsh
 
-      - name: Rename binary (Unix)
+      - name: Upload artifact (Unix)
         if: runner.os != 'Windows'
-        run: |
-          mv dist/proxmate dist/${{ matrix.asset_name }}
-
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          move dist\proxmate.exe dist\${{ matrix.asset_name }}
-
-      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: dist/${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}.tar.gz
+
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}.zip
 
   release:
     needs: build

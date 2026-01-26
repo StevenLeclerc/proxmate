@@ -20,19 +20,21 @@
 
 ### Option 1 : Binaire précompilé (recommandé)
 
-Téléchargez le binaire pour votre plateforme depuis les [Releases](https://github.com/StevenLeclerc/proxmate/releases) :
+Téléchargez l'archive pour votre plateforme depuis les [Releases](https://github.com/StevenLeclerc/proxmate/releases) :
 
-| Plateforme | Fichier |
+| Plateforme | Archive |
 |------------|---------|
-| Linux x86_64 | `proxmate-linux-x86_64` |
-| Windows x86_64 | `proxmate-windows-x86_64.exe` |
-| macOS Intel | `proxmate-macos-x86_64` |
-| macOS Apple Silicon | `proxmate-macos-arm64` |
+| Linux x86_64 | `proxmate-linux-x86_64.tar.gz` |
+| Windows x86_64 | `proxmate-windows-x86_64.zip` |
+| macOS Intel | `proxmate-macos-x86_64.tar.gz` |
+| macOS Apple Silicon | `proxmate-macos-arm64.tar.gz` |
 
 ```bash
-# Linux/macOS : rendre exécutable et déplacer dans le PATH
-chmod +x proxmate-*
-sudo mv proxmate-* /usr/local/bin/proxmate
+# Linux/macOS : extraire et installer
+tar -xzf proxmate-*.tar.gz
+sudo mv proxmate /usr/local/bin/
+
+# Windows : extraire le ZIP et ajouter le dossier au PATH
 ```
 
 <details>
@@ -44,8 +46,8 @@ Le binaire n'est pas signé avec un certificat Apple Developer. macOS affichera 
 **Solutions :**
 
 ```bash
-# Option 1 : Supprimer l'attribut de quarantaine (recommandé)
-xattr -d com.apple.quarantine /usr/local/bin/proxmate
+# Supprimer l'attribut de quarantaine sur tout le dossier
+xattr -rd com.apple.quarantine /usr/local/bin/proxmate
 ```
 
 Ou bien :
