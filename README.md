@@ -41,18 +41,19 @@ sudo mv proxmate /usr/local/bin/
 <summary>⚠️ <strong>Note pour macOS</strong> : contourner le warning de sécurité</summary>
 
 Le binaire n'est pas signé avec un certificat Apple Developer. macOS affichera un warning :
-> "proxmate ne peut pas être ouvert car le développeur n'a pas pu être vérifié."
+> "proxmate" is damaged and can't be opened.
 
-**Solutions :**
+**Solution (obligatoire après extraction) :**
 
 ```bash
-# Supprimer l'attribut de quarantaine sur tout le dossier
-xattr -rd com.apple.quarantine /usr/local/bin/proxmate
+# Supprimer l'attribut de quarantaine sur tout le dossier extrait
+xattr -rd com.apple.quarantine ~/Downloads/proxmate/
+
+# Puis déplacer dans le PATH
+sudo mv ~/Downloads/proxmate /usr/local/bin/
 ```
 
-Ou bien :
-- **Clic droit** sur le binaire → **Ouvrir** (une seule fois)
-- **Préférences Système** → **Sécurité et confidentialité** → **Ouvrir quand même**
+Vous pouvez ensuite lancer `proxmate` depuis n'importe où.
 
 </details>
 

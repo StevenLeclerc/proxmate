@@ -103,6 +103,7 @@ class ProxmoxClient:
             token_name=config.token_name,
             token_value=config.token_value,
             verify_ssl=config.verify_ssl,
+            timeout=60,  # Timeout de 60s pour les opérations longues (clone, etc.)
         )
     
     @property
