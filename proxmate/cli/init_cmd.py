@@ -133,8 +133,34 @@ def init_command():
     console.print()
     print_success(f"Contexte '{context_name}' créé et activé!")
     console.print(f"[dim]Configuration sauvegardée dans {CONFIG_FILE}[/dim]")
+
+    # Démarrer le daemon automatiquement
+    console.print("\n[bold]🔄 Démarrage du daemon de cache...[/bold]")
+    try:
+        from proxmate.core.daemon import is_daemon_running, start_daemon
+        import os
+
+        if is_daemon_running():
+            print_info("Le daemon est déjà en cours d'exécution.")
+        else:
+            pid = os.fork()
+            if pid == 0:
+                # Child process - devient le daemon
+                start_daemon()
+            else:
+                # Parent process - attend un peu et vérifie
+                import time
+                time.sleep(1)
+                if is_daemon_running():
+                    print_success("Daemon démarré! Le cache sera rafraîchi toutes les 30s.")
+                else:
+                    print_warning("Le daemon n'a pas pu démarrer. Utilisez 'proxmate dm start' manuellement.")
+    except Exception as e:
+        print_warning(f"Impossible de démarrer le daemon: {e}")
+
     console.print("\n[dim]Vous pouvez maintenant utiliser:[/dim]")
     console.print("  • [cyan]proxmate status[/cyan] - Voir l'état du cluster")
     console.print("  • [cyan]proxmate list[/cyan] - Lister les VMs")
     console.print("  • [cyan]proxmate ctx ls[/cyan] - Lister les contextes")
+    console.print("  • [cyan]proxmate dm status[/cyan] - Voir l'état du daemon")
 

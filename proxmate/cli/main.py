@@ -15,6 +15,7 @@ from proxmate.cli.vm_cmd import start_command, stop_command, restart_command, de
 from proxmate.cli.snapshot_cmd import snapshot_app
 from proxmate.cli.sshconfig_cmd import gensshconfig_command
 from proxmate.cli.ctx_cmd import ctx_command, ctx_ls_command, ctx_create_command, ctx_rm_command
+from proxmate.cli.daemon_cmd import daemon_app
 
 console = Console()
 
@@ -73,6 +74,9 @@ ctx_app.command("create", help="Crée un nouveau contexte")(ctx_create_command)
 ctx_app.command("rm", help="Supprime un contexte")(ctx_rm_command)
 
 app.add_typer(ctx_app, name="context")
+
+# Gestion du daemon de cache
+app.add_typer(daemon_app, name="dm")
 
 
 if __name__ == "__main__":

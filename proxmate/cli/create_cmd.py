@@ -12,8 +12,14 @@ from rich.prompt import Prompt, Confirm, IntPrompt
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from proxmate.core.config import is_configured, get_config, save_created_vm, VMCreationInfo
-from proxmate.core.proxmox import ProxmoxClient
+from proxmate.core.config import is_configured, get_config, save_created_vm, VMCreationInfo, get_current_context_name
+from proxmate.core.proxmox import ProxmoxClient, VMInfo
+from proxmate.core.cache import (
+    get_templates_cache,
+    is_cache_valid,
+    invalidate_cache,
+    format_cache_age,
+)
 from proxmate.utils.display import print_error, print_success, print_info, print_warning
 
 console = Console()
@@ -146,9 +152,34 @@ def create_command(
     try:
         client = ProxmoxClient()
         config = get_config()
+        context_name = get_current_context_name()
+        cache_used = False
 
-        # Récupérer les templates disponibles
-        templates = client.get_templates()
+        # Récupérer les templates disponibles (depuis le cache si possible)
+        templates = None
+        if context_name and is_cache_valid(context_name, "templates"):
+            cached_data, _ = get_templates_cache(context_name)
+            if cached_data:
+                templates = [
+                    VMInfo(
+                        vmid=t["vmid"],
+                        name=t["name"],
+                        status=t["status"],
+                        node=t["node"],
+                        cpu=t["cpu"],
+                        maxmem=t["maxmem"],
+                        maxdisk=t["maxdisk"],
+                        uptime=t["uptime"],
+                        template=True,
+                    )
+                    for t in cached_data
+                ]
+                cache_used = True
+
+        # Fallback API
+        if templates is None:
+            templates = client.get_templates()
+
         if not templates:
             print_error("Aucun template disponible.")
             console.print("[dim]Créez d'abord un template avec:[/dim] proxmate template create")
@@ -511,6 +542,10 @@ def create_command(
                     error_count += 1
 
         # Résultat final
+        # Invalider le cache après création
+        if success_count > 0 and context_name:
+            invalidate_cache(context_name, "vms")
+
         console.print("\n" + "═" * 50)
         if error_count == 0:
             console.print(f"[bold green]✅ {success_count} VM(s) créée(s) avec succès![/bold green]")
