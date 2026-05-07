@@ -13,8 +13,9 @@ from proxmate.core.config import CONFIG_DIR
 # Répertoire de cache
 CACHE_DIR = CONFIG_DIR / "cache"
 
-# TTL du cache en secondes (60s par défaut)
-CACHE_TTL_SECONDS = 60
+# TTL du cache en secondes — le daemon rafraîchit toutes les 30s,
+# on garde une marge large pour éviter les expirations en bordure.
+CACHE_TTL_SECONDS = 120
 
 
 def _ensure_cache_dir(context: str) -> Path:
