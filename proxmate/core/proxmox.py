@@ -24,6 +24,7 @@ class VMInfo:
     uptime: int
     template: bool = False
     ip_address: Optional[str] = None
+    ip_from_cache: bool = False  # True si l'IP vient du cache (non récupérée en live)
     
     @property
     def memory_gb(self) -> float:
@@ -134,7 +135,13 @@ class ProxmoxClient:
         Args:
             node: Filtrer par node spécifique
             fetch_ips: Si True, récupère les IPs (plus lent). Par défaut True.
+                       Si l'IP n'est pas récupérée en live, utilise le cache.
         """
+        # Charger le cache des IPs pour fallback
+        cached_ips: dict[int, str] = {}
+        if fetch_ips:
+            cached_ips = self._get_cached_ips()
+
         vms = []
         nodes = [node] if node else [n.node for n in self.get_nodes()]
 
@@ -153,14 +160,67 @@ class ProxmoxClient:
                         uptime=vm.get("uptime", 0),
                         template=vm.get("template", 0) == 1,
                     )
-                    # Récupérer l'IP seulement si demandé et VM running
-                    if fetch_ips and vm_info.status == "running" and not vm_info.template:
-                        vm_info.ip_address = self._get_vm_ip(n, vm["vmid"])
                     vms.append(vm_info)
             except Exception:
                 continue
 
+        # Resolve IPs for running non-template VMs
+        if fetch_ips:
+            vms_needing_ip = [vm for vm in vms if vm.status == "running" and not vm.template]
+
+            if len(vms_needing_ip) >= 3:
+                # Parallel IP resolution for 3+ VMs
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    future_to_vm = {
+                        executor.submit(self._get_vm_ip, vm.node, vm.vmid): vm
+                        for vm in vms_needing_ip
+                    }
+                    for future in as_completed(future_to_vm):
+                        vm = future_to_vm[future]
+                        try:
+                            vm.ip_address = future.result()
+                        except Exception:
+                            vm.ip_address = None
+            else:
+                # Sequential for fewer than 3 VMs
+                for vm in vms_needing_ip:
+                    vm.ip_address = self._get_vm_ip(vm.node, vm.vmid)
+
+            # Fallback to cached IPs for VMs where live fetch failed
+            for vm in vms_needing_ip:
+                if vm.ip_address is None and vm.vmid in cached_ips:
+                    vm.ip_address = cached_ips[vm.vmid]
+                    vm.ip_from_cache = True
+
         return sorted(vms, key=lambda v: v.vmid)
+
+    def _get_cached_ips(self) -> dict[int, str]:
+        """
+        Récupère les IPs depuis le cache.
+
+        Returns:
+            Dict vmid -> ip_address
+        """
+        try:
+            from proxmate.core.cache import get_vms_cache
+            from proxmate.core.config import get_current_context_name
+
+            context_name = get_current_context_name()
+            if not context_name:
+                return {}
+
+            cached_vms, _ = get_vms_cache(context_name)
+            if not cached_vms:
+                return {}
+
+            return {
+                vm["vmid"]: vm["ip_address"]
+                for vm in cached_vms
+                if vm.get("ip_address")
+            }
+        except Exception:
+            return {}
     
     def _get_vm_ip(self, node: str, vmid: int) -> Optional[str]:
         """

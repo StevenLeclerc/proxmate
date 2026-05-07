@@ -58,6 +58,15 @@ class AppConfig(BaseModel):
 CONFIG_DIR = Path.home() / ".proxmate"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
+# In-memory config cache to avoid repeated YAML reads within a command
+_config_cache: Optional[AppConfig] = None
+
+
+def _clear_config_cache() -> None:
+    """Clear the in-memory config cache, forcing next load_config() to read from disk."""
+    global _config_cache
+    _config_cache = None
+
 
 def ensure_config_dir() -> Path:
     """Crée le répertoire de configuration s'il n'existe pas."""
@@ -66,7 +75,14 @@ def ensure_config_dir() -> Path:
 
 
 def load_config() -> Optional[AppConfig]:
-    """Charge la configuration depuis le fichier YAML."""
+    """Charge la configuration depuis le fichier YAML.
+
+    Uses an in-memory cache to avoid repeated disk reads within a command.
+    """
+    global _config_cache
+    if _config_cache is not None:
+        return _config_cache
+
     if not CONFIG_FILE.exists():
         return None
 
@@ -80,6 +96,7 @@ def load_config() -> Optional[AppConfig]:
             # Migration automatique de l'ancien format vers le nouveau
             config = _migrate_config_if_needed(config)
 
+            _config_cache = config
             return config
     except Exception as e:
         raise ValueError(f"Erreur lors du chargement de la configuration: {e}")
@@ -120,6 +137,7 @@ def save_config(config: AppConfig) -> None:
 
     # Sécuriser le fichier (contient des secrets)
     os.chmod(CONFIG_FILE, 0o600)
+    _clear_config_cache()
 
 
 def is_configured() -> bool:
@@ -192,7 +210,7 @@ def set_context(name: str) -> bool:
         return False
 
     config.current_context = name
-    save_config(config)
+    save_config(config)  # save_config already clears cache
     return True
 
 

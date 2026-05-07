@@ -54,16 +54,25 @@ def format_bytes(size: int) -> str:
     return f"{size} B"
 
 
+def format_ip_address(vm: VMInfo) -> str:
+    """Formate l'adresse IP avec indication si elle vient du cache."""
+    if not vm.ip_address:
+        return "-"
+    if vm.ip_from_cache:
+        return f"{vm.ip_address} [dim](cache)[/dim]"
+    return vm.ip_address
+
+
 def display_vms_table(vms: list[VMInfo], show_templates: bool = False) -> None:
     """Affiche un tableau des VMs."""
     # Filtrer les templates si demandé
     if not show_templates:
         vms = [vm for vm in vms if not vm.template]
-    
+
     if not vms:
         print_warning("Aucune VM trouvée.")
         return
-    
+
     table = Table(title="🖥️  Liste des VMs", show_header=True, header_style="bold cyan")
     table.add_column("VMID", style="dim", width=6)
     table.add_column("Nom", style="bold")
@@ -72,18 +81,18 @@ def display_vms_table(vms: list[VMInfo], show_templates: bool = False) -> None:
     table.add_column("IP", style="cyan")
     table.add_column("CPU", justify="right")
     table.add_column("RAM", justify="right")
-    
+
     for vm in vms:
         table.add_row(
             str(vm.vmid),
             vm.name,
             vm.node,
             format_status(vm.status),
-            vm.ip_address or "-",
+            format_ip_address(vm),
             str(vm.cpu),
             f"{vm.memory_gb} GB",
         )
-    
+
     console.print(table)
 
 

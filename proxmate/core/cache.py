@@ -231,3 +231,92 @@ def get_storages_cache(context: str) -> tuple[Optional[list[dict]], Optional[dat
     timestamp = get_cache_timestamp(context, "storages")
     return data, timestamp
 
+
+# =============================================================================
+# Shared cache-to-object converters (used by all commands)
+# =============================================================================
+
+def vms_from_cache(cached_data: list[dict]) -> list:
+    """Convert cached VM dicts to VMInfo objects.
+
+    Uses lazy import to avoid circular dependency with proxmox module.
+    """
+    from proxmate.core.proxmox import VMInfo
+    return [
+        VMInfo(
+            vmid=vm["vmid"],
+            name=vm["name"],
+            status=vm["status"],
+            node=vm["node"],
+            cpu=vm["cpu"],
+            maxmem=vm["maxmem"],
+            maxdisk=vm["maxdisk"],
+            uptime=vm["uptime"],
+            template=vm.get("template", False),
+            ip_address=vm.get("ip_address"),
+        )
+        for vm in cached_data
+    ]
+
+
+def nodes_from_cache(cached_data: list[dict]) -> list:
+    """Convert cached node dicts to NodeInfo objects."""
+    from proxmate.core.proxmox import NodeInfo
+    return [
+        NodeInfo(
+            node=n["node"],
+            status=n["status"],
+            cpu=n["cpu"],
+            maxcpu=n["maxcpu"],
+            mem=n["mem"],
+            maxmem=n["maxmem"],
+            uptime=n["uptime"],
+        )
+        for n in cached_data
+    ]
+
+
+# =============================================================================
+# Cache-first accessors (check cache, fallback to API)
+# =============================================================================
+
+def get_nodes_or_fetch(context: str, client) -> list:
+    """Return nodes from cache if valid, otherwise fetch from API and update cache."""
+    if context and is_cache_valid(context, "nodes"):
+        cached_data, _ = get_nodes_cache(context)
+        if cached_data:
+            return nodes_from_cache(cached_data)
+
+    nodes = client.get_nodes()
+    if context:
+        set_nodes_cache(context, nodes)
+    return nodes
+
+
+def get_vms_or_fetch(context: str, client, fetch_ips: bool = False) -> list:
+    """Return VMs from cache if valid, otherwise fetch from API and update cache."""
+    if context and is_cache_valid(context, "vms"):
+        cached_data, _ = get_vms_cache(context)
+        if cached_data:
+            return vms_from_cache(cached_data)
+
+    vms = client.get_vms(fetch_ips=fetch_ips)
+    if context:
+        set_vms_cache(context, vms)
+    return vms
+
+
+def get_storages_or_fetch(context: str, client, node: str, content_type: str = "images") -> list[dict]:
+    """Return storages from cache if valid, otherwise fetch from API.
+
+    When using cache, filters by node. The daemon caches storages already
+    filtered to content_type="images", so cache is only usable for that type.
+    """
+    if content_type == "images" and context and is_cache_valid(context, "storages"):
+        cached_data, _ = get_storages_cache(context)
+        if cached_data:
+            return [s for s in cached_data if s.get("_node") == node]
+
+    # Fallback to live API (already filters by content_type)
+    return client.get_storages(node, content_type=content_type)
+

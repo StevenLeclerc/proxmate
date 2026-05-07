@@ -99,8 +99,8 @@ def _refresh_context(context_name: str, context_config: ContextConfig, logger: l
         set_nodes_cache(context_name, nodes)
         logger.debug(f"[{context_name}] {len(nodes)} nodes mis en cache")
         
-        # Refresh des VMs (sans IPs pour la rapidité)
-        vms = client.get_vms(fetch_ips=False)
+        # Refresh des VMs (avec IPs pour le cache)
+        vms = client.get_vms(fetch_ips=True)
         set_vms_cache(context_name, vms)
         logger.debug(f"[{context_name}] {len(vms)} VMs mises en cache")
         

@@ -12,6 +12,8 @@ from proxmate.cli.list_cmd import list_command, templates_command
 from proxmate.cli.template_cmd import template_app
 from proxmate.cli.create_cmd import create_command
 from proxmate.cli.vm_cmd import start_command, stop_command, restart_command, delete_command
+from proxmate.cli.update_cmd import update_command
+from proxmate.cli.ps_cmd import ps_command
 from proxmate.cli.snapshot_cmd import snapshot_app
 from proxmate.cli.sshconfig_cmd import gensshconfig_command
 from proxmate.cli.ctx_cmd import ctx_command, ctx_ls_command, ctx_create_command, ctx_rm_command
@@ -42,6 +44,12 @@ app.command("templates")(templates_command)
 # Commande de création de VM
 app.command("create")(create_command)
 
+# Commande de modification des ressources
+app.command("update")(update_command)
+
+# Commande de details d'une VM
+app.command("ps")(ps_command)
+
 # Commandes de contrôle des VMs
 app.command("start")(start_command)
 app.command("stop")(stop_command)
@@ -56,14 +64,8 @@ app.add_typer(template_app, name="template")
 app.add_typer(snapshot_app, name="snapshot")
 
 # Gestion des contextes
-# proxmate ctx → affiche le contexte actuel
-# proxmate ctx <name> → change de contexte (ou propose création)
 app.command("ctx", help="🔄 Affiche ou change le contexte actif")(ctx_command)
 
-# Sous-commandes pour la gestion des contextes
-# proxmate context ls → liste les contextes
-# proxmate context create <name> → crée un contexte
-# proxmate context rm <name> → supprime un contexte
 ctx_app = typer.Typer(
     name="context",
     help="🔄 Gestion des contextes (clusters Proxmox)",
@@ -81,4 +83,3 @@ app.add_typer(daemon_app, name="dm")
 
 if __name__ == "__main__":
     app()
-

@@ -14,6 +14,7 @@ from proxmate.core.cache import (
     set_templates_cache,
     is_cache_valid,
     format_cache_age,
+    vms_from_cache,
 )
 from proxmate.utils.display import (
     print_error,
@@ -22,25 +23,6 @@ from proxmate.utils.display import (
     display_templates_table,
     console,
 )
-
-
-def _vms_from_cache(cached_data: list[dict]) -> list[VMInfo]:
-    """Convertit les données du cache en objets VMInfo."""
-    return [
-        VMInfo(
-            vmid=vm["vmid"],
-            name=vm["name"],
-            status=vm["status"],
-            node=vm["node"],
-            cpu=vm["cpu"],
-            maxmem=vm["maxmem"],
-            maxdisk=vm["maxdisk"],
-            uptime=vm["uptime"],
-            template=vm.get("template", False),
-            ip_address=vm.get("ip_address"),
-        )
-        for vm in cached_data
-    ]
 
 
 def list_command(
@@ -87,7 +69,7 @@ def list_command(
         if not refresh and context_name and is_cache_valid(context_name, "vms"):
             cached_data, timestamp = get_vms_cache(context_name)
             if cached_data:
-                vms = _vms_from_cache(cached_data)
+                vms = vms_from_cache(cached_data)
                 cache_used = True
                 cache_age_str = format_cache_age(context_name, "vms")
 
@@ -150,7 +132,7 @@ def templates_command(
         if not refresh and context_name and is_cache_valid(context_name, "templates"):
             cached_data, timestamp = get_templates_cache(context_name)
             if cached_data:
-                templates = _vms_from_cache(cached_data)
+                templates = vms_from_cache(cached_data)
                 cache_used = True
                 cache_age_str = format_cache_age(context_name, "templates")
 

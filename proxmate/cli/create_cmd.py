@@ -19,6 +19,10 @@ from proxmate.core.cache import (
     is_cache_valid,
     invalidate_cache,
     format_cache_age,
+    vms_from_cache,
+    get_nodes_or_fetch,
+    get_vms_or_fetch,
+    get_storages_or_fetch,
 )
 from proxmate.utils.display import print_error, print_success, print_info, print_warning
 
@@ -82,18 +86,49 @@ def _create_single_vm(
                 pass
             time.sleep(2)
 
+        # Attendre que Proxmox libère le lock après le clonage
+        time.sleep(3)
+
+        # Helper pour retries sur erreur de lock
+        def _retry_on_lock(operation_name: str, operation_func, max_retries: int = 5, delay: float = 3.0):
+            """Réessaie une opération si erreur de lock Proxmox."""
+            last_error = None
+            for attempt in range(max_retries):
+                try:
+                    return operation_func()
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if "lock" in error_str or "timeout" in error_str:
+                        last_error = e
+                        if attempt < max_retries - 1:
+                            time.sleep(delay)
+                            continue
+                    # Autre erreur, on la propage
+                    raise
+            # Toutes les tentatives ont échoué
+            raise Exception(f"{operation_name}: lock timeout après {max_retries} tentatives. "
+                           f"Supprimez manuellement le fichier de lock sur le serveur Proxmox:\n"
+                           f"  ssh root@{selected_node} 'rm /var/lock/qemu-server/lock-{vmid}.conf'\n"
+                           f"Erreur originale: {last_error}")
+
         # Étape 2: Configurer les ressources
-        client.api.nodes(selected_node).qemu(vmid).config.put(
-            cores=cores,
-            memory=memory,
+        _retry_on_lock(
+            "Configuration CPU/RAM",
+            lambda: client.api.nodes(selected_node).qemu(vmid).config.put(
+                cores=cores,
+                memory=memory,
+            )
         )
 
         # Étape 3: Redimensionner le disque
         if disk > selected_template.disk_gb:
             size_diff = disk - int(selected_template.disk_gb)
-            client.api.nodes(selected_node).qemu(vmid).resize.put(
-                disk="scsi0",
-                size=f"+{size_diff}G",
+            _retry_on_lock(
+                "Redimensionnement disque",
+                lambda: client.api.nodes(selected_node).qemu(vmid).resize.put(
+                    disk="scsi0",
+                    size=f"+{size_diff}G",
+                )
             )
 
         # Étape 4: Configurer Cloud-Init
@@ -107,11 +142,17 @@ def _create_single_vm(
             encoded_key = urllib.parse.quote(ssh_key.replace("\n", ""), safe="")
             cloudinit_params["sshkeys"] = encoded_key
 
-        client.api.nodes(selected_node).qemu(vmid).config.put(**cloudinit_params)
+        _retry_on_lock(
+            "Configuration Cloud-Init",
+            lambda: client.api.nodes(selected_node).qemu(vmid).config.put(**cloudinit_params)
+        )
 
         # Étape 5: Démarrer si demandé
         if start:
-            client.api.nodes(selected_node).qemu(vmid).status.start.post()
+            _retry_on_lock(
+                "Démarrage VM",
+                lambda: client.api.nodes(selected_node).qemu(vmid).status.start.post()
+            )
 
         # Sauvegarder les infos
         vm_creation_info = VMCreationInfo(
@@ -160,20 +201,7 @@ def create_command(
         if context_name and is_cache_valid(context_name, "templates"):
             cached_data, _ = get_templates_cache(context_name)
             if cached_data:
-                templates = [
-                    VMInfo(
-                        vmid=t["vmid"],
-                        name=t["name"],
-                        status=t["status"],
-                        node=t["node"],
-                        cpu=t["cpu"],
-                        maxmem=t["maxmem"],
-                        maxdisk=t["maxdisk"],
-                        uptime=t["uptime"],
-                        template=True,
-                    )
-                    for t in cached_data
-                ]
+                templates = vms_from_cache(cached_data)
                 cache_used = True
 
         # Fallback API
@@ -202,7 +230,7 @@ def create_command(
         # ═══════════════════════════════════════════════════════════════
         # 2. RÉPARTITION SUR LES NODES (si plusieurs VMs)
         # ═══════════════════════════════════════════════════════════════
-        nodes = [n for n in client.get_nodes() if n.status == "online"]
+        nodes = [n for n in get_nodes_or_fetch(context_name, client) if n.status == "online"]
         distribute_on_nodes = False
         available_nodes = []
         selected_node = None
@@ -287,6 +315,70 @@ def create_command(
                     vm_names.append(vm_name)
 
         # ═══════════════════════════════════════════════════════════════
+        # 4b. VÉRIFICATION DES NOMS EXISTANTS
+        # ═══════════════════════════════════════════════════════════════
+        # Récupérer les VMs existantes (depuis le cache si possible)
+        existing_vms = get_vms_or_fetch(context_name, client, fetch_ips=False)
+
+        existing_names = {vm.name.lower(): vm for vm in existing_vms if not vm.template}
+
+        # Vérifier les conflits de noms
+        conflicting_vms = []
+        for vm_name in vm_names:
+            if vm_name.lower() in existing_names:
+                conflicting_vms.append(existing_names[vm_name.lower()])
+
+        if conflicting_vms:
+            console.print()
+            print_warning(f"{len(conflicting_vms)} VM(s) avec ce nom existe(nt) déjà:")
+            for vm in conflicting_vms:
+                status_icon = "🟢" if vm.status == "running" else "🔴"
+                console.print(f"  • [cyan]{vm.name}[/cyan] (VMID: {vm.vmid}) - {status_icon} {vm.status} sur {vm.node}")
+
+            console.print()
+            console.print("[bold]Que voulez-vous faire?[/bold]")
+            console.print("  1. Supprimer les VMs existantes et continuer")
+            console.print("  2. Changer les noms")
+            console.print("  3. Annuler")
+
+            action = IntPrompt.ask("Choix", default=3)
+
+            if action == 1:
+                # Supprimer les VMs existantes
+                console.print()
+                for vm in conflicting_vms:
+                    try:
+                        if vm.status == "running":
+                            console.print(f"[dim]Arrêt de {vm.name}...[/dim]")
+                            client.stop_vm(vm.node, vm.vmid, wait=True)
+                        console.print(f"[dim]Suppression de {vm.name}...[/dim]")
+                        client.delete_vm(vm.node, vm.vmid)
+                        print_success(f"VM {vm.name} supprimée")
+                    except Exception as e:
+                        print_error(f"Impossible de supprimer {vm.name}: {e}")
+                        raise typer.Exit(1)
+
+                # Invalider le cache après suppression
+                if context_name:
+                    invalidate_cache(context_name, "vms")
+
+            elif action == 2:
+                # Demander de nouveaux noms
+                console.print()
+                new_vm_names = []
+                for i, old_name in enumerate(vm_names):
+                    if old_name.lower() in existing_names:
+                        new_name = Prompt.ask(f"Nouveau nom pour [cyan]{old_name}[/cyan]", default=f"{old_name}-new")
+                        new_vm_names.append(new_name)
+                    else:
+                        new_vm_names.append(old_name)
+                vm_names = new_vm_names
+                console.print(f"[dim]→ Nouveaux noms: {', '.join(vm_names)}[/dim]")
+            else:
+                print_info("Création annulée.")
+                raise typer.Exit()
+
+        # ═══════════════════════════════════════════════════════════════
         # 5. NODE (seulement si pas de répartition auto et pas de stockage local)
         # ═══════════════════════════════════════════════════════════════
         if not distribute_on_nodes and selected_node is None:
@@ -307,7 +399,7 @@ def create_command(
         # ═══════════════════════════════════════════════════════════════
         # Pour le storage, on prend celui du premier node (ou selected_node)
         storage_node = selected_node if selected_node else nodes[0].node
-        storages = client.get_storages(storage_node, content_type="images")
+        storages = get_storages_or_fetch(context_name, client, storage_node, content_type="images")
 
         def format_size(bytes_val: int) -> str:
             return f"{bytes_val / (1024**3):.1f} GB"
@@ -449,7 +541,7 @@ def create_command(
         # ═══════════════════════════════════════════════════════════════
         # PRÉPARATION DES VMs
         # ═══════════════════════════════════════════════════════════════
-        existing_vmids = {vm.vmid for vm in client.get_vms(fetch_ips=False)}
+        existing_vmids = {vm.vmid for vm in existing_vms}
         base_vmid = max(existing_vmids) + 1 if existing_vmids else 100
 
         vms_to_create = []

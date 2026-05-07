@@ -12,32 +12,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from proxmate.core.config import is_configured, remove_created_vm, get_current_context_name
 from proxmate.core.proxmox import ProxmoxClient, VMInfo
 from proxmate.core.cache import (
-    get_vms_cache,
-    is_cache_valid,
     invalidate_cache,
+    get_vms_or_fetch,
 )
 from proxmate.utils.display import print_error, print_success, print_warning, print_info
 
 console = Console()
-
-
-def _vms_from_cache(cached_data: list[dict]) -> list[VMInfo]:
-    """Convertit les données du cache en objets VMInfo."""
-    return [
-        VMInfo(
-            vmid=vm["vmid"],
-            name=vm["name"],
-            status=vm["status"],
-            node=vm["node"],
-            cpu=vm["cpu"],
-            maxmem=vm["maxmem"],
-            maxdisk=vm["maxdisk"],
-            uptime=vm["uptime"],
-            template=vm.get("template", False),
-            ip_address=vm.get("ip_address"),
-        )
-        for vm in cached_data
-    ]
 
 
 def _parse_selection(selection: str, max_val: int) -> list[int]:
@@ -118,15 +98,7 @@ def _delete_single_vm(client: ProxmoxClient, vm: VMInfo, purge: bool) -> bool:
 def _get_vms_with_cache(client: ProxmoxClient) -> list[VMInfo]:
     """Récupère les VMs depuis le cache ou l'API."""
     context_name = get_current_context_name()
-
-    # Essayer le cache d'abord
-    if context_name and is_cache_valid(context_name, "vms"):
-        cached_data, _ = get_vms_cache(context_name)
-        if cached_data:
-            return _vms_from_cache(cached_data)
-
-    # Fallback API
-    return client.get_vms(fetch_ips=False)
+    return get_vms_or_fetch(context_name, client, fetch_ips=False)
 
 
 def _find_vm(client: ProxmoxClient, identifier: str):
